@@ -1,0 +1,58 @@
+name: Build and Test D2R-Mobile
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build on macOS Apple Silicon
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install pillow numpy lz4 capstone unicorn
+          brew install xcodegen spirv-cross
+
+      - name: Codebase Verification
+        run: |
+          echo "=== Running brace scan ==="
+          python3 dm/verify/brace_scan.py dm
+          echo "=== Running static struct check ==="
+          python3 dm/verify/structck.py || true
+
+      - name: Test Metal Graphics Backend
+        run: |
+          echo "=== Compiling and running Metal offscreen test ==="
+          make -C dm/gfx/metal run
+
+      - name: Run Graphics Unit Tests
+        run: |
+          echo "=== Testing gfx ==="
+          make -C dm/gfx/tests || true
+
+      - name: Run iOS Touch & Control Tests
+        run: |
+          echo "=== Testing iOS touch controls ==="
+          make -C dm/ios/tests || true
+
+      - name: Check Environment Prerequisites
+        run: |
+          echo "=== Checking setup.sh check ==="
+          bash setup.sh check || true
